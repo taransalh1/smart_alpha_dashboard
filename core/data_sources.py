@@ -7,7 +7,9 @@ import pandas as pd
 
 from .utils import http, get_secret, safe_float
 
-BINANCE = "https://api1.binance.com"
+BINANCE_PRIMARY = "https://api1.binance.com"
+BINANCE_BACKUP = "https://api2.binance.com"
+BINANCE_DATA = "https://data-api.binance.vision"  # read-only public mirror
 ALPHA_LIST = "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list"
 COINGECKO = "https://api.coingecko.com/api/v3"
 DEFILLAMA = "https://api.llama.fi"
@@ -15,14 +17,13 @@ TOKENUNLOCKS = "https://api.token.unlocks.app"  # community api; may vary
 
 # ---------------- Binance ----------------
 def get_exchange_info() -> Dict[str, Any]:
-    try:
-        return http.jget(f"{BINANCE}/api/v3/exchangeInfo")
-    except Exception as e:
-        # fallback to data mirror
+    """Get Binance spot exchange info with fallback mirrors."""
+    for base in [BINANCE_PRIMARY, BINANCE_BACKUP, BINANCE_DATA]:
         try:
-            return http.jget("https://data-api.binance.vision/api/v3/exchangeInfo")
+            return http.jget(f"{base}/api/v3/exchangeInfo")
         except Exception:
-            raise RuntimeError(f"Failed to fetch exchange info: {e}")
+            continue
+    raise RuntimeError("All Binance mirrors failed for /exchangeInfo")
 
 
 def get_usdt_spot_symbols() -> List[str]:
@@ -30,13 +31,18 @@ def get_usdt_spot_symbols() -> List[str]:
     return [s["symbol"] for s in ex.get("symbols", []) if s.get("status")=="TRADING" and s.get("quoteAsset")=="USDT"]
 
 def get_ticker_24h_all() -> pd.DataFrame:
-    data = http.jget(f"{BINANCE}/api/v3/ticker/24hr")
-    df = pd.DataFrame(data)
-    # cast
-    for c in ["lastPrice","priceChangePercent","volume","quoteVolume"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-    return df
+    """Get 24h ticker data for all pairs with fallback mirrors."""
+    for base in [BINANCE_PRIMARY, BINANCE_BACKUP, BINANCE_DATA]:
+        try:
+            data = http.jget(f"{base}/api/v3/ticker/24hr")
+            df = pd.DataFrame(data)
+            for c in ["lastPrice", "priceChangePercent", "volume", "quoteVolume"]:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors="coerce")
+            return df
+        except Exception:
+            continue
+    raise RuntimeError("All Binance mirrors failed for /ticker/24hr")
 
 def get_klines(symbol: str, interval: str = "15m", limit: int = 96):
     return http.jget(f"{BINANCE}/api/v3/klines", params={"symbol": symbol, "interval": interval, "limit": limit})
