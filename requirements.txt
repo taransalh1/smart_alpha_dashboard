@@ -1,0 +1,8 @@
+streamlit
+pandas
+requests
+plotly
+python-dateutil
+openpyxl
+python-dotenv
+matplotlib
