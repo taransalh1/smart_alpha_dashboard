@@ -3,7 +3,10 @@ from datetime import datetime
 import time
 import re
 
+import requests
 import pandas as pd
+import traceback
+import streamlit as st
 
 from .utils import http, get_secret, safe_float
 
@@ -30,19 +33,24 @@ def get_usdt_spot_symbols() -> List[str]:
     ex = get_exchange_info()
     return [s["symbol"] for s in ex.get("symbols", []) if s.get("status")=="TRADING" and s.get("quoteAsset")=="USDT"]
 
-def get_ticker_24h_all() -> pd.DataFrame:
-    """Get 24h ticker data for all pairs with fallback mirrors."""
-    for base in [BINANCE_PRIMARY, BINANCE_BACKUP, BINANCE_DATA]:
-        try:
-            data = http.jget(f"{base}/api/v3/ticker/24hr")
-            df = pd.DataFrame(data)
-            for c in ["lastPrice", "priceChangePercent", "volume", "quoteVolume"]:
-                if c in df.columns:
-                    df[c] = pd.to_numeric(df[c], errors="coerce")
-            return df
-        except Exception:
-            continue
-    raise RuntimeError("All Binance mirrors failed for /ticker/24hr")
+def get_ticker_24h_all():
+    """Fetch 24h ticker data from Binance with error safety."""
+    url = "https://api.binance.com/api/v3/ticker/24hr"
+    try:
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list):
+            st.warning("⚠️ Binance returned unexpected format.")
+            return pd.DataFrame()
+        df = pd.DataFrame(data)
+        if df.empty:
+            st.warning("⚠️ Binance returned empty ticker data.")
+        return df
+    except Exception as e:
+        st.error(f"❌ Binance API error: {e}")
+        st.code(traceback.format_exc())
+        return pd.DataFrame()
 
 def get_klines(symbol: str, interval: str = "15m", limit: int = 96):
     return http.jget(f"{BINANCE}/api/v3/klines", params={"symbol": symbol, "interval": interval, "limit": limit})
