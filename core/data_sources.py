@@ -11,7 +11,7 @@ BINANCE_PRIMARY = "https://api1.binance.com"
 BINANCE_BACKUP = "https://api2.binance.com"
 BINANCE_DATA = "https://data-api.binance.vision"  # read-only public mirror
 ALPHA_LIST = "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list"
-COINGECKO = "https://api.coingecko.com/api/v3"
+COINGECKO = "https://pro-api.coingecko.com/api/v3"
 DEFILLAMA = "https://api.llama.fi"
 TOKENUNLOCKS = "https://api.token.unlocks.app"  # community api; may vary
 
@@ -91,19 +91,30 @@ def cg_coin_list_with_platforms() -> List[Dict[str, Any]]:
 
 def cg_find_id_by_symbol_platform(symbol_upper: str, platform: Optional[str] = None) -> Optional[str]:
     sym = symbol_upper.lower()
-    coins = cg_coin_list_with_platforms()
-    # exact symbol first
-    for c in coins:
-        if c.get("symbol","").lower() == sym:
-            plats = c.get("platforms") or {}
-            if (platform is None) or (platform in plats):
+    key = get_secret("COINGECKO_API_KEY", None)
+    headers = {"x-cg-pro-api-key": key} if key else {}
+    # Try lightweight search first
+    try:
+        res = http.jget(f"{COINGECKO}/search", params={"query": sym}, headers=headers)
+        coins = res.get("coins", [])
+        for c in coins:
+            if c.get("symbol", "").lower() == sym:
                 return c.get("id")
-    # fallback partial
-    for c in coins:
-        plats = c.get("platforms") or {}
-        if (platform is None or platform in plats) and c.get("symbol","").lower().startswith(sym[:3]):
-            return c.get("id")
+        if coins:
+            return coins[0].get("id")
+    except Exception:
+        pass
+
+    # fallback (only if necessary)
+    try:
+        res = http.jget(f"{COINGECKO}/coins/list", params={"include_platform": "true"}, headers=headers)
+        for c in res:
+            if c.get("symbol", "").lower() == sym:
+                return c.get("id")
+    except Exception:
+        pass
     return None
+
 
 def cg_coin_market_data(coin_id: str) -> Dict[str, Any]:
     params = dict(localization="false", tickers="false", market_data="true", community_data="true", developer_data="true", sparkline="false")
