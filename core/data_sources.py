@@ -34,36 +34,24 @@ def get_usdt_spot_symbols() -> List[str]:
     return [s["symbol"] for s in ex.get("symbols", []) if s.get("status")=="TRADING" and s.get("quoteAsset")=="USDT"]
 
 def get_ticker_24h_all():
-    """Fetch 24h ticker data from Binance, rotating mirrors on failure."""
-    endpoints = [
-        "https://api.binance.com",
-        "https://data.binance.com",
-        "https://api1.binance.com",
-        "https://api2.binance.com",
-        "https://api3.binance.com"
+    import requests, pandas as pd, streamlit as st, traceback
+    mirrors = [
+        "https://api-gcp.binance.com/api/v3/ticker/24hr",
+        "https://data.binance.us/api/v3/ticker/24hr",
     ]
-    path = "/api/v3/ticker/24hr"
-
-    for base in endpoints:
-        url = base + path
+    for url in mirrors:
         try:
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             data = r.json()
-            if not isinstance(data, list):
-                st.warning(f"⚠️ Unexpected response format from {url}")
-                continue
-            df = pd.DataFrame(data)
-            st.info(f"✅ Loaded {len(df)} tickers from {base}")
-            return df
-        except requests.exceptions.HTTPError as e:
-            st.warning(f"Mirror {base} failed: {e}")
+            if isinstance(data, list) and len(data) > 0:
+                st.info(f"✅ Loaded {len(data)} tickers from {url}")
+                return pd.DataFrame(data)
         except Exception as e:
-            st.warning(f"Mirror {base} failed: {e}")
-            st.code(traceback.format_exc())
-
-    st.error("❌ All Binance mirrors failed — cannot fetch ticker data.")
+            st.warning(f"Mirror failed: {url} → {e}")
+    st.error("❌ No Binance mirror accessible — check network/region block.")
     return pd.DataFrame()
+
 
 def get_klines(symbol: str, interval: str = "15m", limit: int = 96):
     return http.jget(f"{BINANCE}/api/v3/klines", params={"symbol": symbol, "interval": interval, "limit": limit})
