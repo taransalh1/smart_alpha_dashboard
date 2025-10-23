@@ -7,6 +7,7 @@ from datetime import datetime, UTC
 from core.utils import fmt_usd, fmt_pct, st_theme_toggle, safe_float
 from core import data_sources as ds
 from core import scoring as sc
+import traceback, requests
 
 # ---- PAGE CONFIG ----
 st.set_page_config(page_title="Smart Alpha Dashboard", layout="wide")
@@ -34,8 +35,20 @@ if alpha_map.empty:
     st.error("No Binance Alpha tokens matched USDT spot pairs right now.")
     st.stop()
 
-with st.spinner("Fetching 24h ticker data..."):
-    stats = ds.get_ticker_24h_all()
+with st.spinner("Fetching 24h ticker data (diagnostic)..."):
+    try:
+        stats = ds.get_ticker_24h_all()
+        if stats is None:
+            st.error("⚠️ get_ticker_24h_all() returned None.")
+            st.stop()
+        st.write(f"✅ Fetched ticker data: {len(stats)} rows")
+    except requests.exceptions.RequestException as e:
+        st.error(f"❌ Network error: {e}")
+        st.stop()
+    except Exception as e:
+        st.error("❌ get_ticker_24h_all() crashed:")
+        st.code(traceback.format_exc())
+        st.stop()
 
 rows = []
 for _, r in alpha_map.iterrows():
