@@ -25,7 +25,7 @@ with st.sidebar:
     topn = st.slider("Show Top N", 10, 100, 30, 5)
 
 if auto:
-    st.experimental_set_query_params(ts=str(datetime.utcnow().timestamp()))
+    st.query_params["ts"] = str(datetime.utcnow().timestamp())
 
 # Fetch Alpha mapping to Binance
 with st.spinner("Fetching Binance Alpha list..."):

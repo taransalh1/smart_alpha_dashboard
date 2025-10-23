@@ -7,16 +7,23 @@ import pandas as pd
 
 from .utils import http, get_secret, safe_float
 
-BINANCE = "https://api.binance.com"
+BINANCE = "https://api1.binance.com"
 ALPHA_LIST = "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list"
 COINGECKO = "https://api.coingecko.com/api/v3"
 DEFILLAMA = "https://api.llama.fi"
 TOKENUNLOCKS = "https://api.token.unlocks.app"  # community api; may vary
 
 # ---------------- Binance ----------------
-
 def get_exchange_info() -> Dict[str, Any]:
-    return http.jget(f"{BINANCE}/api/v3/exchangeInfo")
+    try:
+        return http.jget(f"{BINANCE}/api/v3/exchangeInfo")
+    except Exception as e:
+        # fallback to data mirror
+        try:
+            return http.jget("https://data-api.binance.vision/api/v3/exchangeInfo")
+        except Exception:
+            raise RuntimeError(f"Failed to fetch exchange info: {e}")
+
 
 def get_usdt_spot_symbols() -> List[str]:
     ex = get_exchange_info()
